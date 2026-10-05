@@ -1,0 +1,89 @@
+name: Test and build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # needed to attach binaries to a release on tag pushes
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build RemindersSys.exe
+        shell: pwsh
+        run: powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $env:REMINDERSYS_HOME = "$env:RUNNER_TEMP\rs-home"
+          $p = Start-Process dist\RemindersSys.exe -ArgumentList "--demo","summary","daily","--no-browser" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "exit code $($p.ExitCode)" }
+          if (-not (Get-ChildItem "$env:RUNNER_TEMP\rs-home\summaries\daily-*.html")) { throw "no summary written" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RemindersSys-Windows
+          path: dist/RemindersSys.exe
+
+  macos:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-latest      # Apple Silicon
+          - runner: macos-15-intel    # Intel
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build RemindersSys.app and .dmg
+        run: bash packaging/build_macos.sh
+      - name: Smoke test
+        run: |
+          export REMINDERSYS_HOME="$RUNNER_TEMP/rs-home"
+          dist/RemindersSys.app/Contents/MacOS/RemindersSys --demo summary daily --no-browser
+          ls "$REMINDERSYS_HOME"/summaries/daily-*.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RemindersSys-macOS-${{ matrix.runner }}
+          path: dist/*.dmg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

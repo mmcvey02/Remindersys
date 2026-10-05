@@ -1,0 +1,8 @@
+caldav>=1.4,<4
+icalendar>=5
+tzdata  # timezone database for Windows
+keyring>=24
+pystray>=0.19
+Pillow>=10
+pyobjc-framework-EventKit>=10; sys_platform == "darwin"
+pyobjc-framework-Cocoa>=10; sys_platform == "darwin"

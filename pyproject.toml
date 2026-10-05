@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "remindersys"
+dynamic = ["version"]
+description = "Smart, travel-aware notifications and summaries for Apple Calendar and Reminders"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "caldav>=1.4,<4",
+    "icalendar>=5",
+    "tzdata",
+    "keyring>=24",
+    "pystray>=0.19",
+    "Pillow>=10",
+    "pyobjc-framework-EventKit>=10; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa>=10; sys_platform == 'darwin'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pyinstaller>=6.6"]
+
+[project.scripts]
+remindersys = "remindersys.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "remindersys.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["remindersys*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
